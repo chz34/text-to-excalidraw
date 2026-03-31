@@ -1,6 +1,6 @@
 ---
 name: text-to-excalidraw
-description: Convert a natural language description into an Excalidraw diagram (.excalidraw file). Triggered by /text-to-excalidraw command or when user asks to draw/diagram something. Generates Excalidraw JSON elements and saves to a .excalidraw file.
+description: Convert a natural language description into an Excalidraw diagram (.excalidraw file), with optional export to SVG or PNG. Triggered by /text-to-excalidraw command or when user asks to draw/diagram something. Generates Excalidraw JSON elements, saves to a .excalidraw file, and can render to SVG/PNG on request.
 ---
 
 # Text-to-Excalidraw
