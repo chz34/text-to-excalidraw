@@ -59,7 +59,16 @@ test -f <BASE_DIR>/scripts/wrap.js && \
   echo "installed" || echo "missing"
 ```
 
-If missing, tell the user to run `./install.sh` from the project root. The installer copies the skill (including scripts/) and runs `npm install` automatically. SVG/PNG export is included in the default install — no separate step required.
+If missing, tell the user to install from the repository:
+
+```bash
+git clone https://github.com/chz34/text-to-excalidraw.git
+cd text-to-excalidraw
+./install.sh          # Claude Code / OpenCode
+# or: ./install.sh openclaw   # OpenClaw
+```
+
+The installer copies the skill (including `scripts/`) to the appropriate location and runs `npm install` automatically.
 
 ### Step 5 — Write the .excalidraw file
 
