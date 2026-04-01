@@ -94,6 +94,58 @@ async function installDOMPolyfill() {
     value: fontFaceSet, writable: true, configurable: true,
   });
 
+  // jsdom does not implement HTMLCanvasElement.getContext() without the `canvas`
+  // npm package, which requires native compilation and is unavailable offline.
+  // @excalidraw/utils uses a 2D canvas context only for font metric queries
+  // (ctx.font / ctx.measureText). Stub it out so exports work without canvas.
+  dom.window.HTMLCanvasElement.prototype.getContext = function (contextType) {
+    if (contextType !== "2d") return null;
+    const stub = {
+      canvas: this,
+      font: "10px sans-serif",
+      fillStyle: "#000",
+      strokeStyle: "#000",
+      lineWidth: 1,
+      textAlign: "start",
+      textBaseline: "alphabetic",
+      globalAlpha: 1,
+      measureText(text) {
+        const charWidth = 8;
+        const w = (typeof text === "string" ? text.length : 0) * charWidth;
+        return {
+          width: w,
+          actualBoundingBoxLeft: 0,
+          actualBoundingBoxRight: w,
+          actualBoundingBoxAscent: 10,
+          actualBoundingBoxDescent: 2,
+          fontBoundingBoxAscent: 10,
+          fontBoundingBoxDescent: 2,
+        };
+      },
+      // drawing / state methods — all no-ops
+      save() {}, restore() {},
+      scale() {}, rotate() {}, translate() {}, transform() {},
+      setTransform() {}, resetTransform() {},
+      beginPath() {}, closePath() {},
+      moveTo() {}, lineTo() {},
+      arc() {}, arcTo() {}, ellipse() {}, rect() {},
+      bezierCurveTo() {}, quadraticCurveTo() {},
+      fill() {}, stroke() {}, clip() {},
+      fillRect() {}, strokeRect() {}, clearRect() {},
+      fillText() {}, strokeText() {},
+      drawImage() {},
+      setLineDash() {}, getLineDash() { return []; },
+      createLinearGradient() { return { addColorStop() {} }; },
+      createRadialGradient() { return { addColorStop() {} }; },
+      createPattern() { return null; },
+      getImageData(_x, _y, w, h) {
+        return { data: new Uint8ClampedArray(w * h * 4), width: w, height: h };
+      },
+      putImageData() {},
+    };
+    return stub;
+  };
+
   dom.window.EXCALIDRAW_ASSET_PATH = FONT_PROXY_BASE;
 
   const originalFetch = globalThis.fetch?.bind(globalThis);

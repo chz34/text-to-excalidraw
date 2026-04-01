@@ -72,10 +72,37 @@ install_skill_openclaw() {
 run_tests() {
   local scripts_dir="${1:-$SKILLS_TARGET/text-to-excalidraw/scripts}"
   info "运行单元测试..."
-  if node --test "$scripts_dir"/*.test.mjs; then
+
+  local test_output exit_code=0
+  test_output=$(node --test "$scripts_dir"/*.test.mjs 2>&1) || exit_code=$?
+
+  echo "$test_output"
+  echo ""
+
+  if [ "$exit_code" -eq 0 ]; then
     info "所有测试通过 ✓"
   else
-    warn "部分测试未通过，请检查输出"
+    # 提取失败的测试名（仅含耗时括号的行，排除 "failing tests:" 标题行）
+    local failed_tests
+    failed_tests=$(echo "$test_output" | grep -E "^✖ .+\([0-9.]+ms\)" | sed 's/ ([0-9.]*ms)$//' | sort -u)
+
+    echo -e "${RED}[失败的测试]${NC}"
+    echo "$failed_tests"
+    echo ""
+
+    # 提取第一条具体错误信息（AssertionError / Error: 行）作为提示
+    local first_error
+    first_error=$(echo "$test_output" | grep -m1 -E "^\s+(AssertionError|Error:)" | sed 's/^[[:space:]]*//')
+    if [ -n "$first_error" ]; then
+      warn "首条错误：$first_error"
+    fi
+
+    # 常见原因提示
+    if echo "$test_output" | grep -q "Cannot find package"; then
+      warn "原因：node_modules 未安装 → 运行: npm install --prefix $scripts_dir"
+    fi
+
+    warn "重新运行测试：node --test $scripts_dir/*.test.mjs"
   fi
 }
 
