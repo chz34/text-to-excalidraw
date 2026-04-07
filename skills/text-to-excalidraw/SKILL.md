@@ -38,15 +38,39 @@ Ask: "Save to `./output.excalidraw`? Or specify a different path."
 
 ### Step 3 — Generate Excalidraw elements JSON
 
-Generate a JSON array of elements. Use the schema reference below. Rules:
-- Every element must have a unique `id` (use short alphanumeric strings like "r1", "t1", "a1")
-- Place elements at reasonable coordinates: start at x=100, y=100, space nodes 200px apart
-- For flowcharts: top-to-bottom layout, 180px vertical gap between nodes
-- For sequence diagrams: actors at y=80, spaced 250px horizontally; messages as horizontal arrows
-- For class diagrams: classes as rectangles with text, relationships as arrows
-- Arrows should start/end near the center edge of their source/target elements
-- Text labels inside shapes use `containerId` pointing to the shape's `id`
-- Standalone text uses `type: "text"` with no `containerId`
+Rules:
+- Every element needs a unique short `id` (e.g. "r1", "t1", "a1")
+- Text labels inside shapes: use `containerId` pointing to the shape's `id`
+- Standalone text: `containerId: null`, `textAlign: "left"`, `verticalAlign: "top"`
+
+**Layout planning (do this before generating coordinates):**
+
+Standard node sizes: rectangle 160×60, diamond 160×80, ellipse 140×60.
+
+Assign a row/col index to every node first, then compute coordinates:
+- Top-down: `x = col × (node_w + 120)`, `y = row × (node_h + 100)` — start at x=300, y=100
+- Left-right: `x = col × (node_w + 120)`, `y = row × (node_h + 80)` — start at x=100, y=200
+- Minimum clearance between any two shapes: **80px horizontal, 60px vertical**
+
+Before writing elements, verify no two nodes overlap:
+> overlap exists if `|cx1−cx2| < (w1+w2)/2` AND `|cy1−cy2| < (h1+h2)/2` — increase spacing if true
+
+**Arrow connection rules (critical):**
+
+Every arrow must have `startBinding`/`endBinding` (`{elementId, focus:0, gap:1}`). Without bindings arrows are free-floating and visually disconnect. Every connected shape must list arrows in its `boundElements` alongside the text label.
+
+Compute arrow coordinates precisely from the exact edge of each node:
+- **Vertical** (↓): `x=src.x+src.w/2`, `y=src.y+src.h`, `height=tgt.y−y`, `width=0`, `points:[[0,0],[0,height]]`
+- **Horizontal** (→): `x=src.x+src.w`, `y=src.y+src.h/2`, `width=tgt.x−x`, `height=0`, `points:[[0,0],[width,0]]`
+- **Diagonal**: start = exact source edge-midpoint closest to target; end vector `dx=tgt_edge.x−start.x`, `dy=tgt_edge.y−start.y`; verify by substituting values before writing
+
+Verify arrow math before finalizing:
+- Vertical: `arrow.y + height == tgt.y` ✓
+- Horizontal: `arrow.x + width == tgt.x` ✓
+- Diagonal: `arrow.x + dx == tgt_edge.x` AND `arrow.y + dy == tgt_edge.y` ✓
+
+**Diamond vertices** (midpoints of edges, not corners):
+top=(x+w/2, y) · bottom=(x+w/2, y+h) · left=(x, y+h/2) · right=(x+w, y+h/2)
 
 ### Step 4 — Install CLI tool if needed
 
@@ -240,25 +264,39 @@ For standalone labels (no container shape):
 
 ### Arrow element
 
+Arrows must have `startBinding`/`endBinding`. For unbound ends use `null`.
+
 ```json
 {
-  "type": "arrow",
-  "id": "a1",
-  "x": 260, "y": 130,
-  "width": 80, "height": 0,
-  "points": [[0, 0], [80, 0]],
-  "startArrowhead": null,
-  "endArrowhead": "arrow",
+  "type": "arrow", "id": "a1",
+  "x": 180, "y": 160, "width": 0, "height": 50,
+  "points": [[0,0],[0,50]],
+  "startArrowhead": null, "endArrowhead": "arrow",
+  "startBinding": {"elementId":"r1", "focus":0, "gap":1},
+  "endBinding":   {"elementId":"r2", "focus":0, "gap":1},
   "strokeColor": "#1e1e1e", "backgroundColor": "transparent",
   "fillStyle": "solid", "strokeWidth": 2, "roughness": 1,
   "angle": 0, "opacity": 100,
+  "elbowed": false, "roundness": null,
   "version": 1, "versionNonce": 1, "isDeleted": false,
   "groupIds": [], "boundElements": [],
   "updated": 1, "link": null, "locked": false
 }
 ```
 
-For vertical arrows (top to bottom): `"points": [[0,0],[0,80]]`, set `height: 80, width: 0`.
+`focus:0` = center of edge; `gap:1` = 1px visual gap.
+
+**Routing styles:**
+
+| Style | Fields | When to use |
+|---|---|---|
+| Sharp straight (default) | `"roundness":null, "elbowed":false` | Simple flowcharts, aligned nodes |
+| Round arc | `"roundness":{"type":2}, "elbowed":false` | Sequence diagrams, self-loops |
+| Elbow right-angle | `"elbowed":true, "roundness":null` | Architecture diagrams, auto-routing |
+
+Elbow arrows require `fixedPoint` in each binding: `[0.5,0]`=top-center, `[0.5,1]`=bottom-center, `[0,0.5]`=left-center, `[1,0.5]`=right-center.
+
+**Arrowhead values:** `null` · `"arrow"` · `"triangle"` · `"bar"` · `"dot"` · `"circle"` · `"diamond"` · `"crowfoot_one"` · `"crowfoot_many"` · `"crowfoot_one_or_many"`
 
 ### Frame element
 
@@ -281,24 +319,34 @@ For vertical arrows (top to bottom): `"points": [[0,0],[0,80]]`, set `height: 80
 
 ## Layout Guidelines
 
+### Anti-overlap rules (apply to all diagram types)
+
+Before generating, plan the grid. Safe spacing presets (node_w=160, node_h=60):
+- **Vertical chain**: `y_step = node_h + 100` → y increments of 160
+- **Horizontal chain**: `x_step = node_w + 120` → x increments of 280
+- **Grid**: column pitch 280px, row pitch 160px
+
+For branching (diamond with multiple exits):
+- Place each branch in its own column, centered on the diamond's x ± branch_offset
+- branch_offset = (num_branches − 1) × 140 / 2; branches at x = diamond.x + col × 280 − branch_offset
+
+Overlap check before finalizing: for every pair (A, B):
+```
+no_overlap = |A.cx − B.cx| ≥ (A.w + B.w)/2  OR  |A.cy − B.cy| ≥ (A.h + B.h)/2
+```
+If overlap found, increase spacing and recompute.
+
 ### Flowchart (top-down)
-- Start node: x=300, y=100, width=160, height=60
-- Each subsequent node: y += 160
-- Decision (diamond): same size as rectangles
-- Arrows: from bottom center of source to top center of target
-  - Arrow x = source.x + source.width/2, y = source.y + source.height
-  - Points: `[[0,0],[0,80]]` for 80px vertical gap
+- Nodes: x=300, y=100, width=160, height=60; y += 160 per step (= node_h + 100)
+- Decision diamond: same x/width/height as rectangle; place on its own row
+- Arrows: `x=src.x+src.w/2`, `y=src.y+src.h`, `height=tgt.y−y`, bind both ends
+- Diamond branches: use exact diamond vertex → target top-center; verify dx/dy before writing
 
 ### Sequence diagram
-- Actor boxes: y=60, width=120, height=50, spaced at x=100, 350, 600, ...
-- Actor labels: text bound inside actor box
-- Messages: horizontal arrows at y=160, 220, 280, ...
-  - Arrow starts at right edge of sender actor column, ends at left edge of receiver
-- Activation bars: thin rectangles (width=10) at actor x+55 for the active period
+- Actors: y=60, width=120, height=50, spaced x=100/350/600/…
+- Messages: horizontal arrows at y=160/220/280/…; starts at sender right edge, ends at receiver left edge
+- Activation bars: width=10 rectangles at actor x+55
 
 ### System architecture
-- Group related services in frames
-- Place load balancers/gateways at top center
-- Databases at bottom
-- Space services 220px apart horizontally
-- Use dashed arrows for async connections, solid for sync
+- Frames group related services; gateway/LB at top-center; databases at bottom
+- 220px horizontal spacing; dashed arrows = async, solid = sync
