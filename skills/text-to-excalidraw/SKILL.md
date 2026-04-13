@@ -121,6 +121,28 @@ Use the Write tool to write the complete `.excalidraw` JSON directly:
 }
 ```
 
+### Step 5b — Validate coordinates (required)
+
+After writing the file, **always** run the validator to catch coordinate errors before showing the result to the user:
+
+```bash
+node <BASE_DIR>/scripts/validate.js <output_path>
+```
+
+If the validator reports **errors**, fix them before proceeding:
+
+- `ARROW_WIDTH_MISMATCH` / `ARROW_HEIGHT_MISMATCH` — set `width`/`height` to match `points` last value
+- `ARROW_START_FAR_FROM_EDGE` / `ARROW_END_FAR_FROM_EDGE` — recompute arrow `x`/`y` and `points` so the endpoint lands on the target edge midpoint (the Fix line gives exact coordinates)
+- `BINDING_REF_MISSING` / `CONTAINER_REF_MISSING` / `BOUND_ELEMENT_REF_MISSING` — fix the broken id reference
+
+For **warnings**:
+
+- `ARROW_NOT_IN_SHAPE_BOUND` — add `{"type":"arrow","id":"..."}` to the shape's `boundElements`
+- `TEXT_NOT_IN_CONTAINER_BOUND` — add `{"type":"text","id":"..."}` to the container's `boundElements`
+- `SHAPE_OVERLAP` — increase node spacing to clear the overlap
+
+Re-run the validator after each fix until it reports `no issues`.
+
 ### Step 6 — Export to SVG / PNG (optional)
 
 If the user requested SVG or PNG output, offer to export:
