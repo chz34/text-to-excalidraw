@@ -171,6 +171,7 @@ text-to-excalidraw/
             ├── package.json           # deps: @excalidraw/utils, @resvg/resvg-js, jsdom
             ├── wrap.js                # CLI + 库：elements JSON → .excalidraw 文件
             ├── convert.js             # CLI：.excalidraw → SVG / PNG（--format, --scale, --out）
+            ├── validate.js            # CLI：.excalidraw 坐标校验（箭头/绑定/重叠检查）
             ├── dom-polyfill.js        # 共享模块：JSDOM 环境 + Path2D / FontFace stubs
             ├── wrap.test.mjs          # wrap.js 单元测试
             ├── convert.test.mjs       # convert.js 集成测试
