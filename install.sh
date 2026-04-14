@@ -5,8 +5,9 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="$HOME/.claude"
 SKILLS_TARGET="$CLAUDE_DIR/skills"
 OPENCLAW_SKILLS_TARGET="$HOME/.openclaw/skills"
+SKILL_NAME="text-to-excalidraw"
 
-# ── 颜色输出 ─────────────────────────────────────────────
+# -- color output -------------------------------------------------------------
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -16,62 +17,92 @@ info()    { echo -e "${GREEN}[info]${NC}  $*"; }
 warn()    { echo -e "${YELLOW}[warn]${NC}  $*"; }
 error()   { echo -e "${RED}[error]${NC} $*"; exit 1; }
 
-# ── 检查依赖 ─────────────────────────────────────────────
+# -- check dependencies -------------------------------------------------------
 check_deps() {
   if ! command -v node &>/dev/null; then
-    error "Node.js 未安装。请先安装 Node.js >= 18: https://nodejs.org"
+    error "Node.js is not installed. Please install Node.js >= 18: https://nodejs.org"
   fi
 
   NODE_MAJOR=$(node --version | sed 's/v\([0-9]*\).*/\1/')
   if [ "$NODE_MAJOR" -lt 18 ]; then
-    error "Node.js 版本需要 >= 18，当前版本: $(node --version)"
+    error "Node.js >= 18 required. Current version: $(node --version)"
   fi
 
-  info "Node.js $(node --version) ✓"
+  info "Node.js $(node --version) OK"
 }
 
-# ── 安装 skill（含 scripts/）────────────────────────────
+# -- install skill (symlink) --------------------------------------------------
 install_skill() {
-  local skill_name="text-to-excalidraw"
-  local src="$REPO_DIR/skills/$skill_name"
-  local dst="$SKILLS_TARGET/$skill_name"
+  local dst="$SKILLS_TARGET/$SKILL_NAME"
 
   mkdir -p "$SKILLS_TARGET"
 
-  if [ -d "$dst" ]; then
-    warn "Skill '$skill_name' 已存在，正在覆盖..."
+  if [ -L "$dst" ]; then
+    warn "Skill '$SKILL_NAME' already exists (symlink). Updating..."
+    rm "$dst"
+  elif [ -d "$dst" ]; then
+    if [ -d "$dst/.git" ]; then
+      local dst_real repo_real
+      dst_real="$(cd "$dst" && pwd -P)"
+      repo_real="$(cd "$REPO_DIR" && pwd -P)"
+      if [ "$dst_real" = "$repo_real" ]; then
+        info "Repo is already in the skill directory. Installing npm dependencies..."
+        npm install --prefix "$REPO_DIR/scripts" --omit=dev
+        info "Skill installed OK"
+        return
+      fi
+      error "Target path $dst is a different git repo. Please resolve manually before installing."
+    fi
+    warn "Skill '$SKILL_NAME' already exists (directory). Replacing with symlink..."
     rm -rf "$dst"
   fi
 
-  cp -r "$src" "$dst"
-  info "正在安装 npm 依赖（@excalidraw/utils + @resvg/resvg-js + jsdom）..."
-  npm install --prefix "$dst/scripts" --omit=dev
-  info "Skill 已安装到 $dst ✓"
+  ln -s "$REPO_DIR" "$dst"
+  info "Symlink created: $dst -> $REPO_DIR"
+
+  info "Installing npm dependencies (@excalidraw/utils + @resvg/resvg-js + jsdom)..."
+  npm install --prefix "$REPO_DIR/scripts" --omit=dev
+  info "Skill installed OK"
 }
 
-# ── 安装 skill（OpenClaw）────────────────────────────────
+# -- install skill for OpenClaw (symlink) -------------------------------------
 install_skill_openclaw() {
-  local skill_name="text-to-excalidraw"
-  local src="$REPO_DIR/skills/$skill_name"
-  local dst="$OPENCLAW_SKILLS_TARGET/$skill_name"
+  local dst="$OPENCLAW_SKILLS_TARGET/$SKILL_NAME"
 
   mkdir -p "$OPENCLAW_SKILLS_TARGET"
 
-  if [ -d "$dst" ]; then
-    warn "OpenClaw Skill '$skill_name' 已存在，正在覆盖..."
+  if [ -L "$dst" ]; then
+    warn "OpenClaw skill '$SKILL_NAME' already exists (symlink). Updating..."
+    rm "$dst"
+  elif [ -d "$dst" ]; then
+    if [ -d "$dst/.git" ]; then
+      local dst_real repo_real
+      dst_real="$(cd "$dst" && pwd -P)"
+      repo_real="$(cd "$REPO_DIR" && pwd -P)"
+      if [ "$dst_real" = "$repo_real" ]; then
+        info "Repo is already in the skill directory. Installing npm dependencies..."
+        npm install --prefix "$REPO_DIR/scripts" --omit=dev
+        info "OpenClaw skill installed OK"
+        return
+      fi
+      error "Target path $dst is a different git repo. Please resolve manually before installing."
+    fi
+    warn "OpenClaw skill '$SKILL_NAME' already exists (directory). Replacing with symlink..."
     rm -rf "$dst"
   fi
 
-  cp -r "$src" "$dst"
-  info "正在安装 npm 依赖（@excalidraw/utils + @resvg/resvg-js + jsdom）..."
-  npm install --prefix "$dst/scripts" --omit=dev
-  info "OpenClaw Skill 已安装到 $dst ✓"
+  ln -s "$REPO_DIR" "$dst"
+  info "Symlink created: $dst -> $REPO_DIR"
+
+  info "Installing npm dependencies (@excalidraw/utils + @resvg/resvg-js + jsdom)..."
+  npm install --prefix "$REPO_DIR/scripts" --omit=dev
+  info "OpenClaw skill installed OK"
 }
 
-# ── 运行测试 ──────────────────────────────────────────────
+# -- run tests ----------------------------------------------------------------
 run_tests() {
-  local scripts_dir="${1:-$SKILLS_TARGET/text-to-excalidraw/scripts}"
-  info "运行单元测试..."
+  local scripts_dir="${1:-$REPO_DIR/scripts}"
+  info "Running unit tests..."
 
   local test_output exit_code=0
   test_output=$(node --test "$scripts_dir"/*.test.mjs 2>&1) || exit_code=$?
@@ -80,101 +111,109 @@ run_tests() {
   echo ""
 
   if [ "$exit_code" -eq 0 ]; then
-    info "所有测试通过 ✓"
+    info "All tests passed OK"
   else
-    # 提取失败的测试名（仅含耗时括号的行，排除 "failing tests:" 标题行）
     local failed_tests
     failed_tests=$(echo "$test_output" | grep -E "^✖ .+\([0-9.]+ms\)" | sed 's/ ([0-9.]*ms)$//' | sort -u)
 
-    echo -e "${RED}[失败的测试]${NC}"
+    echo -e "${RED}[failed tests]${NC}"
     echo "$failed_tests"
     echo ""
 
-    # 提取第一条具体错误信息（AssertionError / Error: 行）作为提示
     local first_error
     first_error=$(echo "$test_output" | grep -m1 -E "^\s+(AssertionError|Error:)" | sed 's/^[[:space:]]*//')
     if [ -n "$first_error" ]; then
-      warn "首条错误：$first_error"
+      warn "First error: $first_error"
     fi
 
-    # 常见原因提示
     if echo "$test_output" | grep -q "Cannot find package"; then
-      warn "原因：node_modules 未安装 → 运行: npm install --prefix $scripts_dir"
+      warn "Cause: node_modules not installed. Run: npm install --prefix $scripts_dir"
     fi
 
-    warn "重新运行测试：node --test $scripts_dir/*.test.mjs"
+    warn "Re-run tests: node --test $scripts_dir/*.test.mjs"
   fi
 }
 
-# ── 验证安装 ──────────────────────────────────────────────
+# -- verify installation ------------------------------------------------------
 verify() {
-  local base_dir="${1:-$SKILLS_TARGET/text-to-excalidraw}"
+  local base_dir="${1:-$SKILLS_TARGET/$SKILL_NAME}"
   local skill="$base_dir/SKILL.md"
   local scripts="$base_dir/scripts"
 
-  [ -f "$skill" ]                    || error "Skill 文件未找到: $skill"
-  [ -f "$scripts/wrap.js" ]          || error "wrap.js 未找到: $scripts/wrap.js"
-  [ -f "$scripts/convert.js" ]       || error "convert.js 未找到: $scripts/convert.js"
-  [ -f "$scripts/dom-polyfill.js" ]  || error "dom-polyfill.js 未找到: $scripts/dom-polyfill.js"
+  [ -f "$skill" ]                    || error "Skill file not found: $skill"
+  [ -f "$scripts/wrap.js" ]          || error "wrap.js not found: $scripts/wrap.js"
+  [ -f "$scripts/convert.js" ]       || error "convert.js not found: $scripts/convert.js"
+  [ -f "$scripts/dom-polyfill.js" ]  || error "dom-polyfill.js not found: $scripts/dom-polyfill.js"
 
-  # 快速功能测试（wrap）
   local out
   out=$(echo '[{"id":"v1","type":"rectangle","x":0,"y":0,"width":10,"height":10}]' \
     | node "$scripts/wrap.js" 2>&1)
 
   if echo "$out" | grep -q '"type": "excalidraw"'; then
-    info "功能验证通过 ✓"
+    info "Functional verification passed OK"
   else
-    error "功能验证失败，wrap 输出异常:\n$out"
+    error "Functional verification failed. wrap output:\n$out"
   fi
 }
 
-# ── 卸载 ─────────────────────────────────────────────────
+# -- uninstall ----------------------------------------------------------------
 uninstall() {
-  info "卸载 text-to-excalidraw skill..."
-  rm -rf "$SKILLS_TARGET/text-to-excalidraw"
-  info "卸载完成"
+  local dst="$SKILLS_TARGET/$SKILL_NAME"
+  info "Uninstalling $SKILL_NAME skill..."
+  if [ -L "$dst" ]; then
+    rm "$dst"
+  elif [ -d "$dst" ]; then
+    rm -rf "$dst"
+  else
+    warn "Skill not found at: $dst"
+  fi
+  info "Uninstall complete"
 }
 
-# ── 卸载（OpenClaw）──────────────────────────────────────
+# -- uninstall (OpenClaw) -----------------------------------------------------
 uninstall_openclaw() {
-  info "卸载 OpenClaw text-to-excalidraw skill..."
-  rm -rf "$OPENCLAW_SKILLS_TARGET/text-to-excalidraw"
-  info "卸载完成"
+  local dst="$OPENCLAW_SKILLS_TARGET/$SKILL_NAME"
+  info "Uninstalling OpenClaw $SKILL_NAME skill..."
+  if [ -L "$dst" ]; then
+    rm "$dst"
+  elif [ -d "$dst" ]; then
+    rm -rf "$dst"
+  else
+    warn "Skill not found at: $dst"
+  fi
+  info "Uninstall complete"
 }
 
-# ── 主流程 ────────────────────────────────────────────────
+# -- main ---------------------------------------------------------------------
 case "${1:-install}" in
   install)
-    info "开始安装 text-to-excalidraw（Claude Code / OpenCode）..."
+    info "Installing text-to-excalidraw (Claude Code / OpenCode)..."
     check_deps
     install_skill
     run_tests
     verify
     echo ""
-    info "安装完成！"
+    info "Installation complete!"
     echo ""
-    echo "  使用方式（Claude Code / OpenCode）："
-    echo "    /text-to-excalidraw 画一个登录流程图"
-    echo "    或直接描述: 帮我画一张微服务架构图"
+    echo "  Usage (Claude Code / OpenCode):"
+    echo "    /text-to-excalidraw draw a login flowchart"
     echo ""
-    echo "  导出 SVG/PNG："
+    echo "  Export SVG/PNG:"
     echo "    node ~/.claude/skills/text-to-excalidraw/scripts/convert.js ./output.excalidraw --format svg"
     echo "    node ~/.claude/skills/text-to-excalidraw/scripts/convert.js ./output.excalidraw --format png --scale 2"
     echo ""
     ;;
   openclaw)
-    info "开始安装 text-to-excalidraw（OpenClaw）..."
+    info "Installing text-to-excalidraw (OpenClaw)..."
     check_deps
     install_skill_openclaw
-    run_tests "$OPENCLAW_SKILLS_TARGET/text-to-excalidraw/scripts"
-    verify "$OPENCLAW_SKILLS_TARGET/text-to-excalidraw"
+    run_tests
+    verify "$OPENCLAW_SKILLS_TARGET/$SKILL_NAME"
     echo ""
-    info "OpenClaw 安装完成！"
+    info "OpenClaw installation complete!"
     echo ""
-    echo "  使用方式（OpenClaw）："
-    echo "    /text-to-excalidraw 画一个登录流程图"
-    echo "    或直接描述: 帮我画一张微服务架构图"
+    echo "  Usage (OpenClaw):"
+    echo "    /text-to-excalidraw draw a login flowchart"
     echo ""
     ;;
   uninstall)
@@ -194,12 +233,12 @@ case "${1:-install}" in
   *)
     echo "Usage: $0 [install|openclaw|uninstall|uninstall-openclaw|verify|test]"
     echo ""
-    echo "  install            安装到 Claude Code / OpenCode（默认）"
-    echo "  openclaw           安装到 OpenClaw"
-    echo "  uninstall          卸载 Claude Code / OpenCode 版本"
-    echo "  uninstall-openclaw 卸载 OpenClaw 版本"
-    echo "  verify             验证安装是否正确"
-    echo "  test               只运行单元测试"
+    echo "  install            Install for Claude Code / OpenCode (default, creates symlink)"
+    echo "  openclaw           Install for OpenClaw (creates symlink)"
+    echo "  uninstall          Uninstall Claude Code / OpenCode version"
+    echo "  uninstall-openclaw Uninstall OpenClaw version"
+    echo "  verify             Verify installation"
+    echo "  test               Run unit tests only"
     exit 1
     ;;
 esac

@@ -6,17 +6,17 @@
 
 | 组件 | 路径 | 说明 |
 |---|---|---|
-| Skill | `skills/text-to-excalidraw/` | 触发词识别、图表生成策略、Element schema 参考（兼容 Claude Code / OpenCode / OpenClaw）|
-| CLI 工具 | `skills/text-to-excalidraw/scripts/` | `wrap.js`：elements JSON → `.excalidraw`；`convert.js`：`.excalidraw` → SVG / PNG |
+| Skill | `SKILL.md` | 触发词识别、图表生成策略、Element schema 参考（兼容 Claude Code / OpenCode / OpenClaw）|
+| CLI 工具 | `scripts/` | `wrap.js`：elements JSON → `.excalidraw`；`convert.js`：`.excalidraw` → SVG / PNG |
 | 安装脚本 | `install.sh` | 一键安装/卸载/验证，支持多平台 |
 
 ## 平台兼容性
 
 | 工具 | 安装方式 | Skill 路径 |
 |---|---|---|
-| [Claude Code](https://docs.anthropic.com/claude-code) | `./install.sh` | `~/.claude/skills/text-to-excalidraw/` |
-| [OpenCode](https://opencode.ai) | `./install.sh` | `~/.claude/skills/text-to-excalidraw/`（OpenCode 原生读取此路径）|
-| [OpenClaw](https://github.com/openclaw/openclaw) | `./install.sh openclaw` | `~/.openclaw/skills/text-to-excalidraw/` |
+| [Claude Code](https://docs.anthropic.com/claude-code) | 见下方 | `~/.claude/skills/text-to-excalidraw/` |
+| [OpenCode](https://opencode.ai) | 见下方 | `~/.claude/skills/text-to-excalidraw/`（OpenCode 原生读取此路径）|
+| [OpenClaw](https://github.com/openclaw/openclaw) | 见下方 | `~/.openclaw/skills/text-to-excalidraw/` |
 
 ## 系统要求
 
@@ -28,27 +28,42 @@
 
 ## 快速安装
 
+### 方式一：直接 clone 到 skill 目录（推荐）
+
+**Claude Code / OpenCode：**
+
+```bash
+git clone https://github.com/chz34/text-to-excalidraw.git ~/.claude/skills/text-to-excalidraw
+npm install --prefix ~/.claude/skills/text-to-excalidraw/scripts --omit=dev
+```
+
+**OpenClaw：**
+
+```bash
+git clone https://github.com/chz34/text-to-excalidraw.git ~/.openclaw/skills/text-to-excalidraw
+npm install --prefix ~/.openclaw/skills/text-to-excalidraw/scripts --omit=dev
+```
+
+后续更新只需：
+
+```bash
+cd ~/.claude/skills/text-to-excalidraw && git pull
+```
+
+### 方式二：clone 到任意位置后用脚本安装（创建 symlink）
+
 ```bash
 git clone https://github.com/chz34/text-to-excalidraw.git
 cd text-to-excalidraw
 ```
 
-### Claude Code / OpenCode
+**Claude Code / OpenCode：**
 
 ```bash
 ./install.sh
 ```
 
-安装脚本会：
-1. 检查 Node.js 版本
-2. 将 skill（含 scripts/）复制到 `~/.claude/skills/text-to-excalidraw/`
-3. 在 `scripts/` 目录运行 `npm install`
-4. 运行单元测试
-5. 执行功能验证
-
-> **OpenCode 说明**：OpenCode 原生读取 `~/.claude/skills/`，与 Claude Code 共用同一安装路径，无需额外操作。
-
-### OpenClaw
+**OpenClaw：**
 
 ```bash
 ./install.sh openclaw
@@ -56,10 +71,12 @@ cd text-to-excalidraw
 
 安装脚本会：
 1. 检查 Node.js 版本
-2. 将 skill（含 scripts/）复制到 `~/.openclaw/skills/text-to-excalidraw/`
+2. 在 skill 目录创建指向本仓库的 symlink
 3. 在 `scripts/` 目录运行 `npm install`
 4. 运行单元测试
 5. 执行功能验证
+
+> **OpenCode 说明**：OpenCode 原生读取 `~/.claude/skills/`，与 Claude Code 共用同一安装路径，无需额外操作。
 
 ## 使用方式
 
@@ -134,7 +151,7 @@ node ~/.claude/skills/text-to-excalidraw/scripts/convert.js ./output.excalidraw 
 ## 运行测试
 
 ```bash
-cd skills/text-to-excalidraw/scripts
+cd scripts
 node --test
 ```
 
@@ -164,18 +181,16 @@ text-to-excalidraw/
 ├── README.md
 ├── LICENSE
 ├── install.sh
-└── skills/
-    └── text-to-excalidraw/
-        ├── SKILL.md                   # Skill 定义（Claude Code / OpenCode / OpenClaw）
-        └── scripts/                   # CLI 工具：elements[] → .excalidraw → SVG / PNG
-            ├── package.json           # deps: @excalidraw/utils, @resvg/resvg-js, jsdom
-            ├── wrap.js                # CLI + 库：elements JSON → .excalidraw 文件
-            ├── convert.js             # CLI：.excalidraw → SVG / PNG（--format, --scale, --out）
-            ├── validate.js            # CLI：.excalidraw 坐标校验（箭头/绑定/重叠检查）
-            ├── dom-polyfill.js        # 共享模块：JSDOM 环境 + Path2D / FontFace stubs
-            ├── wrap.test.mjs          # wrap.js 单元测试
-            ├── convert.test.mjs       # convert.js 集成测试
-            └── dom-polyfill.test.mjs  # dom-polyfill.js 单元测试
+├── SKILL.md                   # Skill 定义（Claude Code / OpenCode / OpenClaw）
+└── scripts/                   # CLI 工具：elements[] → .excalidraw → SVG / PNG
+    ├── package.json           # deps: @excalidraw/utils, @resvg/resvg-js, jsdom
+    ├── wrap.js                # CLI + 库：elements JSON → .excalidraw 文件
+    ├── convert.js             # CLI：.excalidraw → SVG / PNG（--format, --scale, --out）
+    ├── validate.js            # CLI：.excalidraw 坐标校验（箭头/绑定/重叠检查）
+    ├── dom-polyfill.js        # 共享模块：JSDOM 环境 + Path2D / FontFace stubs
+    ├── wrap.test.mjs          # wrap.js 单元测试
+    ├── convert.test.mjs       # convert.js 集成测试
+    └── dom-polyfill.test.mjs  # dom-polyfill.js 单元测试
 ```
 
 ## 引用

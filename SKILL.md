@@ -72,27 +72,43 @@ Verify arrow math before finalizing:
 **Diamond vertices** (midpoints of edges, not corners):
 top=(x+w/2, y) · bottom=(x+w/2, y+h) · left=(x, y+h/2) · right=(x+w, y+h/2)
 
-### Step 4 — Install CLI tool if needed
+### Step 4 — Check CLI tool and npm dependencies
 
-Before writing the file, check if the scripts are installed. The skill's base directory is shown at the top of this prompt (the `Base directory for this skill:` line). Scripts live at `<BASE_DIR>/scripts/`. If that line is absent, use the default: `~/.claude/skills/text-to-excalidraw` for Claude Code / OpenCode, or `~/.openclaw/skills/text-to-excalidraw` for OpenClaw.
+The skill's base directory is shown at the top of this prompt (the `Base directory for this skill:` line). Scripts live at `<BASE_DIR>/scripts/`. If that line is absent, use the default: `~/.claude/skills/text-to-excalidraw` for Claude Code / OpenCode, or `~/.openclaw/skills/text-to-excalidraw` for OpenClaw.
+
+Run this single check to detect both missing scripts and missing npm packages:
 
 ```bash
-# Replace <BASE_DIR> with the base directory from the skill header
+# Replace <BASE_DIR> with the actual base directory
 test -f <BASE_DIR>/scripts/wrap.js && \
   test -f <BASE_DIR>/scripts/convert.js && \
-  echo "installed" || echo "missing"
+  test -d <BASE_DIR>/scripts/node_modules/@excalidraw && \
+  echo "ready" || echo "missing"
 ```
 
-If missing, tell the user to install from the repository:
+**If output is `missing`**, determine what is absent and tell the user:
 
-```bash
-git clone https://github.com/chz34/text-to-excalidraw.git
-cd text-to-excalidraw
-./install.sh          # Claude Code / OpenCode
-# or: ./install.sh openclaw   # OpenClaw
-```
+- **Scripts missing** (`wrap.js` or `convert.js` not found) — the skill was not installed correctly:
 
-The installer copies the skill (including `scripts/`) to the appropriate location and runs `npm install` automatically.
+  ```bash
+  # Option A: clone directly into the skill directory (recommended)
+  git clone https://github.com/chz34/text-to-excalidraw.git ~/.claude/skills/text-to-excalidraw
+  npm install --prefix ~/.claude/skills/text-to-excalidraw/scripts --omit=dev
+
+  # Option B: clone elsewhere, then link
+  git clone https://github.com/chz34/text-to-excalidraw.git
+  cd text-to-excalidraw
+  ./install.sh          # Claude Code / OpenCode
+  # or: ./install.sh openclaw
+  ```
+
+- **Scripts present but `node_modules` missing** — the repo was cloned but `npm install` was not run. Fix with:
+
+  ```bash
+  npm install --prefix <BASE_DIR>/scripts --omit=dev
+  ```
+
+Note: `wrap.js` (`.excalidraw` file generation) works without npm packages. Only `convert.js` (SVG/PNG export) requires them. If the user only needs a `.excalidraw` file, you can skip the npm check and proceed directly to Step 5.
 
 ### Step 5 — Write the .excalidraw file
 
